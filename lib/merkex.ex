@@ -8,13 +8,13 @@ defmodule Merkex do
   @spec new(list(term())) :: tuple( atom(), #state
                                     Tree.t(),
                                     tuple( atom(), #data
-                                          list(tuple(atom(), non_neg_integer(), binary())) ) )
+                                           list(tuple(atom(), non_neg_integer(), binary())) ) )
   def new([]),     do: state()
   def new([x|xs]), do: insert(x, new(xs))
 
   def insert(_, tree) do 
-    IO.puts "!"
-    state(tree, 
-          data: :ordsets.add_element({:ordsets.size(state(tree, :data)), nil}, state(tree, :data)))
+    data = state(tree, :data)
+    size = :ordsets.size(data)
+    state(tree, data: :ordsets.add_element({size, nil}, data))
   end
 end
