@@ -5,17 +5,25 @@ defmodule Merkex do
   defrecordp :state, [ tree: Tree.new(),
                        data: [] ]
 
-  @spec new(list(term())) :: tuple( atom(), #state
-                                    Tree.t(),
-                                    tuple( atom(), #data
-                                           list(binary()) ) )
+  @spec new(list(term())) :: {atom, Tree.t, {atom, [binary()]}}
   def new(x) when is_list(x), do: new1(:lists.reverse x)
-  def new1([]),     do: state()
-  def new1([x|xs]), do: insert(x, new1(xs))
 
+  @spec insert(term, {atom, Tree.t, {atom, [binary()]}}) :: {atom, Tree.t, {atom, [binary()]}}
   def insert(x, s) do
     Tree[gb: gb, width: w] = state(s, :tree)
-    gb = :gb_trees.insert({0, w}, term_to_binary(x), gb)
-    state(tree: Tree[gb: gb, width: w+1], data: [x|state(s, :data)])
+    data = term_to_binary(x)
+    gb = :gb_trees.insert({0, w}, :crypto.hash(:sha, data), gb)
+    enter(state(tree: Tree[gb: gb, width: w+1], data: [data|state(s, :data)]))
+  end
+
+  defp new1([]),     do: state()
+  defp new1([x|xs]), do: insert(x, new1(xs))
+
+  defp enter(x), do: x
+
+  defimpl Access, for: Tree do
+    def access(Tree[gb: gb, width: w], {x,y}) do
+      if y > trunc(w/(x+1)) or x > trunc(w/2)+1, do: nil, else: :gb_trees.get {x, y}, gb
+    end
   end
 end
