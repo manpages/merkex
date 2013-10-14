@@ -6,7 +6,9 @@ defmodule Merkex do
                        data: [] ]
 
   @spec new(list(term()), fun()) :: {atom, Tree.t, {atom, [binary()]}}
-  def new(x, f // &(:crypto.hash(:sha, &1))) when is_list(x), do: new1(:lists.reverse(x), f)
+  def new(x, f // &(:crypto.hash(:sha, &1))) when is_list(x) do
+    state(new1(:lists.reverse(x), f), :tree)
+  end
 
   @spec insert(term, {atom, Tree.t, {atom, [binary()]}}, fun()) :: {atom, Tree.t, {atom, [binary()]}}
   def insert(x, s, f) do
@@ -19,6 +21,7 @@ defmodule Merkex do
   defp new1([],     f), do: new_state(f)
   defp new1([x|xs], f), do: insert(x, new1(xs, f), f)
 
+  # update(height, length at this height, tree) -> tree1
   defp update(_, 1, t), do: t
   defp update(h, l, Tree[gb: gb, width: w]) do
     l1 = trunc(l/2) + rem(l,2) # amount of elements at height = h+1
@@ -46,7 +49,9 @@ defmodule Merkex do
 
   defimpl Access, for: Tree do
     def access(Tree[gb: gb, width: w], {x,y}) do
-      if y > trunc(w/(x+1)) or x > trunc(w/2)+1, do: nil, else: :gb_trees.get({x, y}, gb)
+      if (:gb_trees.is_defined({x,y}, gb)) do
+        :gb_trees.get({x, y}, gb)
+      end
     end
   end
 end
