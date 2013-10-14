@@ -1,54 +1,48 @@
 defmodule Merkex do
-  defrecord Tree, gb: :gb_trees.empty(), width: 0, hash_function: nil
-  defrecordp :data, id: 0, binary: ""
+  defrecord Tree, gb: :gb_trees.empty(), width: 0, hash_function: nil, data: []
 
-  defrecordp :state, [ tree: Tree.new(),
-                       data: [] ]
-
-  @spec new(list(term()), fun()) :: {atom, Tree.t, {atom, [binary()]}}
   def new(x, f // &(:crypto.hash(:sha, &1))) when is_list(x) do
-    state(new1(:lists.reverse(x), f), :tree)
+    new1(Enum.reverse(x), new_tree(f))
   end
 
-  @spec insert(term, {atom, Tree.t, {atom, [binary()]}}, fun()) :: {atom, Tree.t, {atom, [binary()]}}
-  def insert(x, s, f) do
-    Tree[gb: gb, width: w] = state(s, :tree)
-    data = term_to_binary(x)
-    gb = :gb_trees.insert({0, w}, f.(data), gb)
-    state(tree: update(0, w+1, Tree[gb: gb, width: w+1]), data: [data|state(s, :data)])
+  def insert(x, t = Tree[gb: gb, width: w, data: data, hash_function: f]) do
+    IO.puts "INSERTING #{x}!"
+    append = term_to_binary(x)
+    t = t.update(data: [append|data], width: w+1)
+    t.gb(:gb_trees.insert({0, w}, f.(data), gb)) |> update(0, w+1)
   end
 
-  defp new1([],     f), do: new_state(f)
-  defp new1([x|xs], f), do: insert(x, new1(xs, f), f)
+  defp new1([],     Tree[] = t), do: t
+  defp new1([x|xs], Tree[] = t), do: insert(x, new1(xs, t))
 
-  # update(height, length at this height, tree) -> tree1
-  defp update(_, 1, t), do: t
-  defp update(h, l, Tree[gb: gb, width: w]) do
+  # update(tree, current height, length at this height) -> tree1
+  defp update(t = Tree[], _, 1), do: t
+  defp update(t = Tree[gb: gb, width: w], h, l) do
     l1 = trunc(l/2) + rem(l,2) # amount of elements at height = h+1
 
     if rem(l,2) == 1 do # if current amount of elements is odd
-      update(h+1, l1, Tree[ gb: :gb_trees.enter( {h+1, trunc(l/2)},
+      update(t.update([ gb: :gb_trees.enter( {h+1, trunc(l/2)},
                                                  :gb_trees.get({h,l-1}, gb),
                                                   gb ),
-                            width: w ])
+                                 width: w ]),
+                      h+1, l1)
     else # if current amount of elements is even
       left  = :gb_trees.get({h,l-1}, gb) # l-1 = id of the last element of height = h
       right = :gb_trees.get({h,l-2}, gb)
-      update(h+1, l1, Tree[ gb: :gb_trees.enter( {h+1, trunc(l/2)-1},
+      update(t.update([ gb: :gb_trees.enter( {h+1, trunc(l/2)-1},
                                                  :crypto.hash(:sha, [left, right]),
                                                  gb ),
-                            width: w ])
+                                 width: w ]),
+                      h+1, l1)
     end
   end
 
-  defp new_state(f) do 
-    state(tree: tree) = state
-    tree = tree.hash_function(f)
-    state(state, tree: tree)
+  defp new_tree(f) do 
+    (Tree.new).hash_function(f)
   end
 
   defimpl Access, for: Tree do
-    def access(Tree[gb: gb, width: w], {x,y}) do
+    def access(Tree[gb: gb], {x,y}) do
       if (:gb_trees.is_defined({x,y}, gb)) do
         :gb_trees.get({x, y}, gb)
       end
