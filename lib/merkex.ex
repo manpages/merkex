@@ -1,5 +1,9 @@
 defmodule Merkex do
-  defrecord Tree, gb: :gb_trees.empty(), width: 0, hash_function: nil, data: []
+  defrecord Tree, gb:            :gb_trees.empty, 
+                  edge_only:     :gb_trees.empty, 
+                  width:         0, 
+                  hash_function: nil, 
+                  data:          []
 
   def new(x, f // &(:crypto.hash(:sha, &1))) when is_list(x) do
     new1(Enum.reverse(x), new_tree(f))
@@ -17,24 +21,23 @@ defmodule Merkex do
 
   # update(tree, current height, length at this height) -> tree1
   defp update(t = Tree[], _, 1), do: t
-  defp update(t = Tree[gb: gb, width: w], h, l) do
+  defp update(t = Tree[gb: gb, width: width, hash_function: f], h, l) do
     l1 = trunc(l/2) + rem(l,2) # amount of elements at height = h+1
+    right0 = :gb_trees.get({h,l-1}, gb) # rightmost element
+    right1 = :gb_trees.get({h,l-2}, gb) # the one before the rightmost
 
     if rem(l,2) == 1 do # if current amount of elements is odd
-      update(t.update([ gb: :gb_trees.enter( {h+1, trunc(l/2)},
-                                                 :gb_trees.get({h,l-1}, gb),
-                                                  gb ),
-                                 width: w ]),
-                      h+1, l1)
+      [gb, edge_only] = lc gb_i inlist [gb, :gb_trees.empty], do: update_gb(gb_i, h+1, trunc(l/2), right0)
+      t.update(gb: gb, edge_only: edge_only, width: width) |> update(h+1, l1)
     else # if current amount of elements is even
-      left  = :gb_trees.get({h,l-1}, gb) # l-1 = id of the last element of height = h
-      right = :gb_trees.get({h,l-2}, gb)
-      update(t.update([ gb: :gb_trees.enter( {h+1, trunc(l/2)-1},
-                                                 :crypto.hash(:sha, [left, right]),
-                                                 gb ),
-                                 width: w ]),
-                      h+1, l1)
+      [gb, edge_only] = lc gb_i inlist [gb, :gb_trees.empty], do: update_gb(gb_i, h+1, trunc(l/2)-1, f.(right1 <> right0))
+      t.update(gb: gb, edge_only: edge_only, width: width) |> update(h+1, l1)
     end
+  end
+
+  defp update_gb(gb, height, offset, data) do
+    IO.puts "Updating <#{inspect height},#{inspect offset}> := #{inspect data}"
+    :gb_trees.enter({height,offset}, data, gb)
   end
 
   defp new_tree(f) do 
@@ -42,9 +45,9 @@ defmodule Merkex do
   end
 
   defimpl Access, for: Tree do
-    def access(Tree[gb: gb], {x,y}) do
-      if (:gb_trees.is_defined({x,y}, gb)) do
-        :gb_trees.get({x, y}, gb)
+    def access(Tree[gb: gb], {h,l}) do
+      if (:gb_trees.is_defined({h,l}, gb)) do
+        :gb_trees.get({h,l}, gb)
       end
     end
   end
