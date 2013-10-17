@@ -12,8 +12,11 @@ defmodule Merkex do
   def insert(x, t = Tree[gb: gb, width: w, data: data, hash_function: f]) do
     IO.puts "INSERTING #{x}!"
     append = term_to_binary(x)
-    t = t.update(data: [append|data], width: w+1)
-    t.gb(:gb_trees.insert({0, w}, f.(data), gb)) |> update(0, w+1)
+    t.update(data: [append|data], 
+             width: w+1,
+             gb: :gb_trees.insert({0, w}, f.(data), gb),
+             edge_only: :gb_trees.empty)
+    |> update(0, w+1)
   end
 
   defp new1([],     Tree[] = t), do: t
@@ -21,16 +24,18 @@ defmodule Merkex do
 
   # update(tree, current height, length at this height) -> tree1
   defp update(t = Tree[], _, 1), do: t
-  defp update(t = Tree[gb: gb, width: width, hash_function: f], h, l) do
+  defp update(t = Tree[gb: gb, edge_only: edge_only, width: width, hash_function: f], h, l) do
     l1 = trunc(l/2) + rem(l,2) # amount of elements at height = h+1
     right0 = :gb_trees.get({h,l-1}, gb) # rightmost element
     right1 = :gb_trees.get({h,l-2}, gb) # the one before the rightmost
+    edge_only = :gb_trees.enter({h,l-1}, right0, edge_only)
+    edge_only = :gb_trees.enter({h,l-2}, right1, edge_only)
 
     if rem(l,2) == 1 do # if current amount of elements is odd
-      [gb, edge_only] = lc gb_i inlist [gb, :gb_trees.empty], do: update_gb(gb_i, h+1, trunc(l/2), right0)
+      [gb, edge_only] = lc gb_i inlist [gb, edge_only], do: update_gb(gb_i, h+1, trunc(l/2), right0)
       t.update(gb: gb, edge_only: edge_only, width: width) |> update(h+1, l1)
     else # if current amount of elements is even
-      [gb, edge_only] = lc gb_i inlist [gb, :gb_trees.empty], do: update_gb(gb_i, h+1, trunc(l/2)-1, f.(right1 <> right0))
+      [gb, edge_only] = lc gb_i inlist [gb, edge_only], do: update_gb(gb_i, h+1, trunc(l/2)-1, f.(right1 <> right0))
       t.update(gb: gb, edge_only: edge_only, width: width) |> update(h+1, l1)
     end
   end
