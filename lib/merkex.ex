@@ -1,6 +1,6 @@
 defmodule Merkex do
   defrecord Tree, gb:            :gb_trees.empty, 
-                  edge_only:     :gb_trees.empty, 
+                  edge:          :gb_trees.empty, 
                   width:         0, 
                   hash_function: nil, 
                   data:          []
@@ -15,7 +15,7 @@ defmodule Merkex do
     t.update(data: [append|data], 
              width: w+1,
              gb: :gb_trees.insert({0, w}, f.(data), gb),
-             edge_only: :gb_trees.empty)
+             edge: :gb_trees.empty)
     |> update(0, w+1)
   end
 
@@ -24,19 +24,19 @@ defmodule Merkex do
 
   # update(tree, current height, length at this height) -> tree1
   defp update(t = Tree[], _, 1), do: t
-  defp update(t = Tree[gb: gb, edge_only: edge_only, width: width, hash_function: f], h, l) do
+  defp update(t = Tree[gb: gb, edge: edge, width: width, hash_function: f], h, l) do
     l1 = trunc(l/2) + rem(l,2) # amount of elements at height = h+1
     right0 = :gb_trees.get({h,l-1}, gb) # rightmost element
     right1 = :gb_trees.get({h,l-2}, gb) # the one before the rightmost
-    edge_only = :gb_trees.enter({h,l-1}, right0, edge_only)
-    edge_only = :gb_trees.enter({h,l-2}, right1, edge_only)
+    edge = :gb_trees.enter({h,l-1}, right0, edge)
+    edge = :gb_trees.enter({h,l-2}, right1, edge)
 
     if rem(l,2) == 1 do # if current amount of elements is odd
-      [gb, edge_only] = lc gb_i inlist [gb, edge_only], do: update_gb(gb_i, h+1, trunc(l/2), right0)
-      t.update(gb: gb, edge_only: edge_only, width: width) |> update(h+1, l1)
+      [gb, edge] = lc gb_i inlist [gb, edge], do: update_gb(gb_i, h+1, trunc(l/2), right0)
+      t.update(gb: gb, edge: edge, width: width) |> update(h+1, l1)
     else # if current amount of elements is even
-      [gb, edge_only] = lc gb_i inlist [gb, edge_only], do: update_gb(gb_i, h+1, trunc(l/2)-1, f.(right1 <> right0))
-      t.update(gb: gb, edge_only: edge_only, width: width) |> update(h+1, l1)
+      [gb, edge] = lc gb_i inlist [gb, edge], do: update_gb(gb_i, h+1, trunc(l/2)-1, f.(right1 <> right0))
+      t.update(gb: gb, edge: edge, width: width) |> update(h+1, l1)
     end
   end
 
